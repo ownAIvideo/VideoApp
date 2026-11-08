@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  passwordHash       String
+  name               String
+  birthDate          DateTime
+  createdAt          DateTime  @default(now())
+  // abonament
+  plan               String    @default("free") // free | basic | pro
+  stripeCustomerId   String?   @unique
+  stripeSubId        String?
+  subStatus          String?
+  credits            Int       @default(1)
+  creditsResetAt     DateTime?
+  // asemănare (likeness)
+  selfiePath         String?
+  selfieConsentAt    DateTime?
+
+  videos             Video[]
+  consentsGiven      LikenessConsent[] @relation("grantor")
+  consentsReceived   LikenessConsent[] @relation("grantee")
+}
+
+// O persoană (grantor) permite explicit altui utilizator (grantee) să-i folosească fața.
+// Se poate revoca oricând. Fără consimțământ activ, fața nu poate fi folosită.
+model LikenessConsent {
+  id          String    @id @default(cuid())
+  grantorId   String?
+  grantor     User?     @relation("grantor", fields: [grantorId], references: [id])
+  granteeId   String
+  grantee     User      @relation("grantee", fields: [granteeId], references: [id])
+  inviteEmail String
+  token       String    @unique
+  status      String    @default("pending") // pending | active | revoked | declined
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+
+  videos      Video[]
+}
+
+model Video {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  templateId  String
+  sceneInput  String
+  script      String   // JSON cu scenariul generat
+  status      String   @default("queued") // queued | processing | succeeded | failed | blocked
+  providerJob String?
+  outputUrl   String?
+  error       String?
+  consentId   String?
+  consent     LikenessConsent? @relation(fields: [consentId], references: [id])
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+// Videoclipuri publicate de administrator în galeria publică (toate generate AI)
+model ShowcaseVideo {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  filePath    String
+  aiTool      String   // ce unealtă AI a generat clipul — afișat public
+  createdAt   DateTime @default(now())
+}
