@@ -32,9 +32,23 @@ Cu `VIDEO_PROVIDER=mock` poți testa tot fluxul fără costuri video (ai nevoie 
 3. Activează Customer Portal în dashboard-ul Stripe.
 
 ## Generatorul video
-`VIDEO_PROVIDER=replicate` + `REPLICATE_MODEL=owner/model`. Câmpurile de input diferă între modele —
-ajustează `mapInput()` din `lib/video.ts`. Alege un model care **acceptă imagine de referință** și a cărui
-licență permite utilizare comercială. Pentru duet ai nevoie de un model cu mai multe imagini de referință.
+Recomandat: **fal.ai** (`VIDEO_PROVIDER=fal`, `FAL_KEY=...`). Fiecare clip trece prin 2 pași:
+1. `FAL_IMAGE_MODEL` (implicit `fal-ai/nano-banana/edit`) compune primul cadru 9:16 fotorealist din selfie-ul
+   utilizatorului (și al partenerului care și-a dat acordul) + scena.
+2. `FAL_VIDEO_MODEL` (implicit `fal-ai/veo3.1/lite/image-to-video`) animează cadrul, cu sunet și replică
+   rostită, sincronizată pe buze. Claude include replica în prompt.
+
+Cost estimativ pe un clip de 8 s, 720p, cu sunet (prețuri fal din nov. 2026, verifică-le pe fal.ai/pricing):
+| Model video | ~$/s | Clip 8 s |
+|---|---|---|
+| Veo 3.1 Lite (implicit) | 0,05 | ~0,40 $ |
+| Kling 3 Pro | 0,168 | ~1,35 $ |
+| Veo 3.1 (complet) | 0,40 | ~3,20 $ |
+
+Se adaugă ~0,04 $ pentru cadrul compus. La planul Pro (80 clipuri) cu Veo Lite costul e ~35 $/lună, deci peste
+prețul de 29 €: ajustează creditele sau prețul înainte de lansare.
+
+`replicate` rămâne disponibil ca alternativă; ajustează `mapInput()` din `lib/video.ts` după modelul ales.
 
 ## Înainte de lansare (obligatoriu)
 - **Stocare**: `storage/` local → S3/R2 privat + URL-uri semnate (fotografiile sunt date biometrice — GDPR art. 9).

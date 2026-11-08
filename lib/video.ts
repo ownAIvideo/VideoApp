@@ -62,4 +62,71 @@ const replicate: Provider = {
   },
 };
 
-export const videoProvider: Provider = process.env.VIDEO_PROVIDER === "replicate" ? replicate : mock;
+// ——— fal.ai (recomandat): 2 pași.
+// 1) Un model de imagine compune primul cadru 9:16 din fotografia/fotografiile de referință + scena.
+// 2) Un model image-to-video animează cadrul, cu sunet și dialog sincronizat pe buze.
+const FAL = "https://queue.fal.run";
+const falHeaders = () => {
+  const key = process.env.FAL_KEY;
+  if (!key) throw new Error("FAL_KEY lipsește");
+  return { Authorization: `Key ${key}`, "Content-Type": "application/json" };
+};
+
+async function falSubmit(endpoint: string, input: Record<string, unknown>) {
+  const r = await fetch(`${FAL}/${endpoint}`, { method: "POST", headers: falHeaders(), body: JSON.stringify(input) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(`fal ${endpoint}: ${r.status} ${JSON.stringify(j).slice(0, 300)}`);
+  return j as { request_id: string; status_url: string; response_url: string };
+}
+
+async function falWait(job: { status_url: string; response_url: string }, maxMs = 120_000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < maxMs) {
+    const st = await (await fetch(job.status_url, { headers: falHeaders() })).json();
+    if (st.status === "COMPLETED") return (await fetch(job.response_url, { headers: falHeaders() })).json();
+    if (st.status !== "IN_QUEUE" && st.status !== "IN_PROGRESS") throw new Error(`fal: ${JSON.stringify(st).slice(0, 300)}`);
+    await new Promise((r) => setTimeout(r, 2500));
+  }
+  throw new Error("fal: compunerea cadrului a durat prea mult");
+}
+
+const fal: Provider = {
+  async start(input) {
+    const imageModel = process.env.FAL_IMAGE_MODEL || "fal-ai/nano-banana/edit";
+    const videoModel = process.env.FAL_VIDEO_MODEL || "fal-ai/veo3.1/lite/image-to-video";
+    const who = input.faceImages.length > 1 ? "the two people from the reference photos (keep both faces exactly)" : "the person from the reference photo (keep the face exactly)";
+    const frame = await falWait(await falSubmit(imageModel, {
+      prompt: `Photorealistic vertical 9:16 film still of ${who}. Scene: ${input.prompt}. Natural skin texture, cinematic lighting, fully clothed, no text.`,
+      image_urls: input.faceImages,
+      aspect_ratio: "9:16",
+      output_format: "jpeg",
+      num_images: 1,
+    }));
+    const frameUrl: string | undefined = frame?.images?.[0]?.url;
+    if (!frameUrl) throw new Error("fal: modelul de imagine nu a returnat un cadru");
+
+    const job = await falSubmit(videoModel, {
+      prompt: input.prompt,
+      negative_prompt: input.negativePrompt,
+      image_url: frameUrl,
+      aspect_ratio: "9:16",
+      duration: input.seconds <= 4 ? "4s" : input.seconds <= 6 ? "6s" : "8s",
+      resolution: input.hd ? "1080p" : "720p",
+      generate_audio: true,
+      safety_tolerance: "2",
+    });
+    return JSON.stringify({ s: job.status_url, r: job.response_url });
+  },
+  async check(jobId) {
+    const { s, r } = JSON.parse(jobId) as { s: string; r: string };
+    const st = await (await fetch(s, { headers: falHeaders() })).json();
+    if (st.status === "IN_QUEUE" || st.status === "IN_PROGRESS") return { status: "processing" };
+    if (st.status !== "COMPLETED") return { status: "failed", error: JSON.stringify(st).slice(0, 300) };
+    const out = await (await fetch(r, { headers: falHeaders() })).json();
+    const url: string | undefined = out?.video?.url;
+    return url ? { status: "succeeded", outputUrl: url } : { status: "failed", error: JSON.stringify(out).slice(0, 300) };
+  },
+};
+
+const PROVIDERS: Record<string, Provider> = { mock, replicate, fal };
+export const videoProvider: Provider = PROVIDERS[process.env.VIDEO_PROVIDER ?? "mock"] ?? mock;

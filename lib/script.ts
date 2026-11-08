@@ -25,7 +25,7 @@ Politica de conținut (obligatorie, fără excepții):
 - Fără droguri, arme îndreptate spre oameni, autovătămare, ură.
 Dacă cererea încalcă politica, setează allowed=false, explică scurt în română în refusalReason, iar celelalte câmpuri lasă-le goale/arrays goale.
 Dacă e în regulă: allowed=true, refusalReason="", title și logline în română, shots în română (suma secundelor = durata),
-videoPrompt în engleză (subiect "the person in the reference photo"${""}, acțiune, cadru, lumină, stil), negativePrompt în engleză care include "nudity, sexual content, minors, distorted face, extra limbs, text, watermark".`;
+videoPrompt în engleză (subiect "the person in the reference photo", acțiune, mișcare de cameră, lumină, stil; include o replică scurtă rostită, între ghilimele, în limba în care a scris clientul, cu cine o spune și pe ce ton, plus sunetul ambiental — modelul video generează vocea sincronizat pe buze), negativePrompt în engleză care include "nudity, sexual content, minors, distorted face, extra limbs, text, watermark".`;
 
 const client = new Anthropic();
 
